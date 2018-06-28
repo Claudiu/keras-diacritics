@@ -50,10 +50,10 @@ optional arguments:
 
 To train
 ```
-python main.py train
+python main.py train --train train.txt --test test.txt --epochs 200
 ```
 
 For HTTP Backend
 ```
-python main.py serve
+python main.py serve --weights save.hf
 ```
