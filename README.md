@@ -25,3 +25,35 @@ Now that we understand the problem at hand, we need to tinker around with the in
 |      0      	| 1 	| 0 	|       0       	|
 |      0      	| 0 	| 1 	|       0       	|
 |      0      	| 0 	| 0 	|       1       	|
+
+## Usage
+```
+usage: main.py [-h] [--weights WEIGHTS] [--epochs EPOCHS]
+               [--timeseries TIMESERIES] [--lstmSize LSTMSIZE]
+               [--dropout DROPOUT] [--train TRAIN] [--test TEST]
+               action
+
+positional arguments:
+  action                Test or Train
+
+optional arguments:
+  -h, --help            show this help message and exit
+  --weights WEIGHTS     A filename where to save our weights
+  --epochs EPOCHS       The number of epochs to train the neural network for.
+  --timeseries TIMESERIES
+                        Size of a single timeseries
+  --lstmSize LSTMSIZE   The size of our first LSTM layer
+  --dropout DROPOUT     Percent Dropout
+  --train TRAIN         Train dataset
+  --test TEST           Test dataset
+```
+
+To train
+```
+python main.py train
+```
+
+For HTTP Backend
+```
+python main.py serve
+```
