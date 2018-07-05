@@ -1,12 +1,41 @@
-from utils import textToSequence, breakInto, removeDiacritics, toTarget, count_letters
+from utils import textToSequence, breakInto, removeDiacritics, toTarget
 from keras.layers import Input, Bidirectional, LSTM, Dropout, TimeDistributed, Dense, GRU
 from keras.callbacks import LambdaCallback, ModelCheckpoint
 from keras.models import Model
 from keras.optimizers import Adam
 
+from keras.utils import Sequence
+
+from keras.preprocessing.sequence import TimeseriesGenerator
+
 from utils import single_class_accuracy
 
 import numpy as np
+import os
+
+
+class ChunkedReader(Sequence):
+    def __init__(self, file, timesteps, chunkSize):
+        self.dataset = open(file, 'r')
+        self.chunkSize = chunkSize
+        self.timesteps = timesteps
+
+    def __len__(self):
+        stSize = os.fstat(self.dataset.fileno()).st_size
+        return int(np.ceil(stSize / (self.chunkSize * self.timesteps))) # not sure if ok
+
+    def __getitem__(self, idx):
+        data = self.dataset.read(self.chunkSize * self.timesteps)
+
+        if data is '':
+            raise StopIteration
+        else:
+            x = breakInto(textToSequence(removeDiacritics(data)))
+            x = np.reshape(x, x.shape + (1,))
+            
+            y = toTarget(data)
+
+            return (x, y)
 
 class NeuralNetwork(object):
     def __init__(self, tsSize = 30, lstmSize = 128, gruSize = 64, dropout = 0.25):
@@ -15,7 +44,7 @@ class NeuralNetwork(object):
         inputs = Input(shape=(tsSize, 1))
         x = Bidirectional(LSTM(lstmSize, return_sequences=True))(inputs)
         x = Dropout(dropout)(x)
-        x = GRU(gruSize, return_sequences=True, activation='tanh')(x)
+        x = Bidirectional(GRU(gruSize, return_sequences=True, activation='tanh'))(x)
         x = Dropout(dropout)(x)
         x = TimeDistributed(Dense(4, activation='softmax'))(x)
         
@@ -56,30 +85,10 @@ class NeuralNetwork(object):
             else: out.append(text[i])
         return ''.join(out)
 
-    def generator(self, dataset):
-        while True:
-            f = open(dataset, 'r')
-
-            for text in iter(lambda: f.read(self.TIMESERIES_SIZE * 100), ''):
-                X = breakInto(textToSequence(removeDiacritics(text)))
-                X = np.reshape(X, X.shape + (1,))
-                Y = toTarget(text)
-
-                yield (X, Y)
-
-            f.close()
-
-    def _countSteps(self, file):
-        # This is probably wrong, but it works for now.
-        return int(count_letters(file) / (self.TIMESERIES_SIZE * 100))
-
-    def fit(self, checkpoint, train, test, epochs=3000):
-        self.model.fit_generator(self.generator(train),
-            steps_per_epoch  = self._countSteps(train),
-            
-            # Validation data to be used after each epoch.
-            validation_data = self.generator(test), 
-            validation_steps = self._countSteps(test),
+    def fit(self, checkpoint, train, test, epochs=3000, batch_size=1024):
+        self.model.fit_generator(
+            generator = ChunkedReader(train, self.TIMESERIES_SIZE, batch_size),
+            validation_data = ChunkedReader(test, self.TIMESERIES_SIZE, batch_size), 
             
             epochs=epochs,
 
