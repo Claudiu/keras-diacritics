@@ -15,17 +15,26 @@ import os
 
 
 class ChunkedReader(Sequence):
-    def __init__(self, file, timesteps, chunkSize):
+    def __init__(self, file, timesteps, batchSize):
         self.dataset = open(file, 'r')
-        self.chunkSize = chunkSize
+        self.batchSize = batchSize
         self.timesteps = timesteps
+
+    @property
+    def chunkSize(self):
+        # The chunkSize (the amount of bytes we need to read) should
+        # be equal to the size of our batch times the number of timesteps
+        # 
+        # Since one timestep equals one character, we can easily multiply that
+        # by our batch size and get the number of bytes to read.
+        return self.batchSize * self.timesteps
 
     def __len__(self):
         stSize = os.fstat(self.dataset.fileno()).st_size
-        return int(np.ceil(stSize / (self.chunkSize * self.timesteps))) # not sure if ok
+        return int(np.ceil(stSize / self.chunkSize)) # not sure if ok
 
     def __getitem__(self, idx):
-        data = self.dataset.read(self.chunkSize * self.timesteps)
+        data = self.dataset.read(self.chunkSize)
 
         if data is '':
             raise StopIteration
@@ -85,7 +94,7 @@ class NeuralNetwork(object):
             else: out.append(text[i])
         return ''.join(out)
 
-    def fit(self, checkpoint, train, test, epochs=3000, batch_size=1024):
+    def fit(self, checkpoint, train, test, epochs=3000, batch_size=50):
         self.model.fit_generator(
             generator = ChunkedReader(train, self.TIMESERIES_SIZE, batch_size),
             validation_data = ChunkedReader(test, self.TIMESERIES_SIZE, batch_size), 
