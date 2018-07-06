@@ -24,7 +24,7 @@ class ChunkedReader(Sequence):
     def chunkSize(self):
         # The chunkSize (the amount of bytes we need to read) should
         # be equal to the size of our batch times the number of timesteps
-        # 
+        #
         # Since one timestep equals one character, we can easily multiply that
         # by our batch size and get the number of bytes to read.
         return self.batchSize * self.timesteps
@@ -41,7 +41,7 @@ class ChunkedReader(Sequence):
         else:
             x = breakInto(textToSequence(removeDiacritics(data)))
             x = np.reshape(x, x.shape + (1,))
-            
+
             y = toTarget(data)
 
             return (x, y)
@@ -56,14 +56,14 @@ class NeuralNetwork(object):
         x = Bidirectional(GRU(gruSize, return_sequences=True, activation='tanh'))(x)
         x = Dropout(dropout)(x)
         x = TimeDistributed(Dense(4, activation='softmax'))(x)
-        
+
         self.model = Model(inputs=inputs, outputs=x)
-        
+
         optimizer = Adam(lr=0.0001)
 
-        self.model.compile(optimizer, 
-            'categorical_crossentropy', 
-            metrics=['acc', 
+        self.model.compile(optimizer,
+            'categorical_crossentropy',
+            metrics=['acc',
                 single_class_accuracy(0),  # ă, ț, ș
                 single_class_accuracy(1),  # î
                 single_class_accuracy(2)]) # â
@@ -78,32 +78,32 @@ class NeuralNetwork(object):
         X = np.reshape(X, X.shape + (1,))
         pred = self.model.predict(X)
         pred = pred.reshape(-1, pred.shape[-1])
-        
+
         out = []
         labels = [np.argmax(amax) for amax in pred[:len(text)]]
 
         for i, label in enumerate(labels):
-            if label == 2 and text[i] in ['a', 'A']: 
+            if label == 2 and text[i] in ['a', 'A']:
                 out.append('â')
-            elif label == 1 and text[i] in ['i', 'I']: 
+            elif label == 1 and text[i] in ['i', 'I']:
                 out.append('î')
-            elif label == 0 and text[i].lower() in ['a', 't', 's']: 
+            elif label == 0 and text[i].lower() in ['a', 't', 's']:
                 if text[i].lower() == 'a': out.append('ă')
-                elif text[i] == 't': out.append('ț') 
-                elif text[i] == 's': out.append('ș') 
+                elif text[i] == 't': out.append('ț')
+                elif text[i] == 's': out.append('ș')
             else: out.append(text[i])
         return ''.join(out)
 
     def fit(self, checkpoint, train, test, epochs=3000, batch_size=50):
         self.model.fit_generator(
             generator = ChunkedReader(train, self.TIMESERIES_SIZE, batch_size),
-            validation_data = ChunkedReader(test, self.TIMESERIES_SIZE, batch_size), 
-            
+            validation_data = ChunkedReader(test, self.TIMESERIES_SIZE, batch_size),
+
             epochs=epochs,
 
             callbacks=[
                 # Just a test sentence I use after each epoch, to see how things are going.
-                LambdaCallback(self.epochFeedback), 
+                LambdaCallback(self.epochFeedback),
 
                 # Save best model variations to disk. Filename argument is checkpoint.
                 ModelCheckpoint(checkpoint, monitor='val_loss', verbose=1, save_best_only=True),
