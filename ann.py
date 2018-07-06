@@ -20,6 +20,13 @@ class ChunkedReader(Sequence):
         self.batchSize = batchSize
         self.timesteps = timesteps
 
+        self.__datasetSize = 0
+
+        # The hipster way of reading the whole file.
+        # TODO: Find a better way to do this, it works for now.
+        for char in self.dataset.read(-1):
+            self.__datasetSize = self.__datasetSize + 1
+
     @property
     def chunkSize(self):
         # The chunkSize (the amount of bytes we need to read) should
@@ -29,6 +36,9 @@ class ChunkedReader(Sequence):
         # by our batch size and get the number of bytes to read.
         return self.batchSize * self.timesteps
 
+    def on_epoch_end(self):
+        self.dataset.seek(0)
+
     def __len__(self):
         stSize = os.fstat(self.dataset.fileno()).st_size
         return int(np.ceil(stSize / self.chunkSize)) # not sure if ok
@@ -37,7 +47,14 @@ class ChunkedReader(Sequence):
         data = self.dataset.read(self.chunkSize)
 
         if data is '':
-            raise StopIteration
+            # Keras generators should by nature be infinite, ours by
+            # design is not and is limited by __len__, if for some
+            # strange reason it overflows we need to seek to the begining of the file.
+            #
+            # This is just a safeguard, normaly we should reach a successful epoch end.
+            # Notice: This is also triggered at the start of our first epoch, I've put it here
+            # so I don't double seek.
+            self.dataset.seek(0)
         else:
             x = breakInto(textToSequence(removeDiacritics(data)))
             x = np.reshape(x, x.shape + (1,))
